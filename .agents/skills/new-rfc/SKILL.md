@@ -16,10 +16,11 @@ Create RFC design documents that match agx conventions, cite concrete code locat
    - Identify affected modules before drafting, including concrete paths under `src/rfc/`, `src/skill/`, and other touched areas.
    - Read `README.md`, `rfc/0000-template.md`, and `src/cli.rs` for terminology and command behavior.
 2. Create or revise the RFC file first.
-   - For new RFCs, run `agx rfc new --agent codex --author "AUTHOR_NAME" --title "RFC_TITLE"`.
-   - For updates, run `agx rfc revise --agent codex RFC_SELECTOR`.
+   - For new RFCs, run `agx rfc new --agent <agent-name> --author "AUTHOR_NAME" --title "RFC_TITLE"`.
+   - For updates, run `agx rfc revise --agent <agent-name> RFC_SELECTOR`.
    - Use metadata flags as needed: `--discussion`, `--tracking_issue`, `--prerequisite`, `--supersedes`, `--superseded_by`, `--title`, `--title_parts`.
    - Keep metadata updates command-driven when a CLI flag exists.
+   - After revising, replace the default `[[revision]].change` value (`Revised`) with a very brief purpose summary that is no more than one sentence.
 3. Fill all template sections.
    - Keep every heading from `rfc/0000-template.md`.
    - Replace template helper text with concrete design content.

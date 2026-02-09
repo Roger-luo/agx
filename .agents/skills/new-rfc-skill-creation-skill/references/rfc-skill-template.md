@@ -17,8 +17,10 @@ Create RFC design documents that match project conventions, point to concrete co
    - Read relevant design docs and code first.
 2. Create the RFC file first.
    - Run `<rfc-new-command>` with required metadata flags.
-   - If updating an existing RFC, run `<rfc-revise-or-update-command>`.
+   - If updating an existing RFC, run `<rfc-revise-or-update-command>` in revision mode and pass `--agent <agent-name>`.
    - Always pass `--agent <agent-name>` so the acting agent identity is recorded in RFC metadata.
+   - Revision entries must include a purpose summary in `[[revision]].change` that is no more than one sentence and very brief.
+   - Never leave a generic revision message such as `Revised`; replace it with the brief purpose summary.
    - Keep metadata updates driven by commands, not manual frontmatter edits.
 3. Fill template placeholders.
    - Replace every bracketed placeholder with concrete content.
