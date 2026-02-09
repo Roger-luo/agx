@@ -39,6 +39,11 @@ pub(crate) fn load_template() -> Result<String> {
     })
 }
 
+/// Return the embedded RFC template shipped in the binary.
+pub(crate) fn embedded_template() -> &'static str {
+    DEFAULT_TEMPLATE
+}
+
 /// Resolve the RFC directory used for title-based metadata reference lookup.
 pub(crate) fn resolve_project_rfc_dir() -> Result<PathBuf> {
     let roots = discover_project_roots()?;

@@ -1,2 +1,12 @@
+pub(crate) mod builtin;
+pub(crate) mod catalog;
+pub(crate) mod dump;
+pub(crate) mod export;
 pub(crate) mod init;
+pub(crate) mod install;
+pub(crate) mod list;
+pub(crate) mod materialize;
+pub(crate) mod metadata;
+pub(crate) mod paths;
+pub(crate) mod select;
 pub(crate) mod validate;

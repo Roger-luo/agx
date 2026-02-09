@@ -42,6 +42,7 @@ impl TestWorkspace {
     pub fn run_cli(&self, args: &[&str]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_agx"))
             .current_dir(&self.root)
+            .env("AGX_DISABLE_CLIPBOARD", "1")
             .args(args)
             .output()
             .expect("failed to execute agx")
@@ -50,6 +51,7 @@ impl TestWorkspace {
     pub fn run_cli_in(&self, relative_dir: &str, args: &[&str]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_agx"))
             .current_dir(self.root.join(relative_dir))
+            .env("AGX_DISABLE_CLIPBOARD", "1")
             .args(args)
             .output()
             .expect("failed to execute agx")
@@ -114,6 +116,34 @@ impl TestWorkspace {
             Some(skill_name) => self.run_skill(&["validate", skill_name]),
             None => self.run_skill(&["validate"]),
         }
+    }
+
+    pub fn run_skill_list(&self, args: &[&str]) -> Output {
+        let mut command_args = Vec::with_capacity(args.len() + 1);
+        command_args.push("list");
+        command_args.extend_from_slice(args);
+        self.run_skill(&command_args)
+    }
+
+    pub fn run_skill_dump(&self, args: &[&str]) -> Output {
+        let mut command_args = Vec::with_capacity(args.len() + 1);
+        command_args.push("dump");
+        command_args.extend_from_slice(args);
+        self.run_skill(&command_args)
+    }
+
+    pub fn run_skill_install(&self, args: &[&str]) -> Output {
+        let mut command_args = Vec::with_capacity(args.len() + 1);
+        command_args.push("install");
+        command_args.extend_from_slice(args);
+        self.run_skill(&command_args)
+    }
+
+    pub fn run_skill_export(&self, args: &[&str]) -> Output {
+        let mut command_args = Vec::with_capacity(args.len() + 1);
+        command_args.push("export");
+        command_args.extend_from_slice(args);
+        self.run_skill(&command_args)
     }
 
     pub fn run_git(&self, args: &[&str]) {

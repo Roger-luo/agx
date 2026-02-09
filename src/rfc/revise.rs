@@ -4,6 +4,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use toml_edit::{Array, ArrayOfTables, DocumentMut, Item, Table, Value, value};
 
 use crate::cli::RfcEditArgs;
+use crate::output;
 
 use super::{
     lookup::locate_existing_rfc,
@@ -89,7 +90,7 @@ pub(crate) fn revise_rfc(cli: &RfcEditArgs) -> Result<()> {
     }
 
     fs::write(&path, updated).with_context(|| format!("failed to update {}", path.display()))?;
-    println!("{}", path.display());
+    output::print_path(path.display());
     Ok(())
 }
 

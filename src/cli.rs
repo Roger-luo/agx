@@ -4,8 +4,8 @@
 //! fields (`prerequisite`, `supersedes`, `superseded_by`) accept either an RFC
 //! id (for example `12`) or a title string.
 
-use clap::{ArgAction, Args, Parser, Subcommand};
-use std::str::FromStr;
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
+use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -21,7 +21,9 @@ Use `skill` to initialize/create/validate local skills.",
   agx skill init\n\
   agx skill new ask-user-question\n\
   agx skill validate\n\
-  agx skill validate ask-user-question"
+  agx skill validate ask-user-question\n\
+  agx skill list --format json\n\
+  agx skill install ask-user-question"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -34,7 +36,7 @@ pub enum Command {
         name = "rfc",
         about = "Initialize, create, and revise RFC markdown files",
         long_about = "Initialize, create, and revise RFC markdown files.\n\n\
-`rfc init` scaffolds project RFC folders and installs the `create-rfc` skill.\n\
+`rfc init` scaffolds project RFC folders and seeds the RFC template from the binary.\n\
 `rfc new` creates a new RFC from the resolved template source.\n\
 `rfc revise` updates an existing RFC in place."
     )]
@@ -42,11 +44,13 @@ pub enum Command {
 
     #[command(
         name = "skill",
-        about = "Initialize, create, and validate skills",
-        long_about = "Initialize, create, and validate skills.\n\n\
-Use `skill init` to scaffold `.agents/skills`.\n\
+        about = "Manage workspace and built-in skills",
+        long_about = "Manage workspace and built-in skills.\n\n\
+Use `skill init` to scaffold `.agents/skills` and seed built-in skills (use `--no-dump` for create-only).\n\
 Use `skill new` to create a new skill scaffold.\n\
-Use `skill validate` to validate one or more skills."
+Use `skill validate` to validate one or more skills.\n\
+Use `skill list` to discover built-in and workspace skills.\n\
+Use `skill dump`, `skill install`, and `skill export` to materialize or package built-in skills."
     )]
     Skill(SkillArgs),
 }
@@ -61,9 +65,10 @@ pub struct RfcArgs {
 pub enum RfcCommand {
     #[command(
         name = "init",
-        about = "Initialize RFC directory and install create-rfc skill",
-        long_about = "Initialize RFC directory and install create-rfc skill.\n\n\
-Creates `rfc` and installs `.agents/skills/create-rfc` when missing.",
+        about = "Initialize RFC directory (requires existing .agents/skills)",
+        long_about = "Initialize RFC directory (requires existing `.agents/skills`).\n\n\
+Creates `rfc`, writes `rfc/0000-template.md` when missing, and errors when `.agents/skills` is missing.\n\
+Use `agx skill dump --all` to materialize built-in skills first.",
         after_help = "Examples:\n\
   agx rfc init"
     )]
@@ -106,11 +111,13 @@ pub enum SkillCommand {
         name = "init",
         about = "Initialize local skills directory",
         long_about = "Initialize local skills directory.\n\n\
-Creates `.agents/skills` when missing.",
+Creates `.agents/skills` when missing, seeds built-in skills by default, and prints a hint for RFC skill creation via the code agent.\n\
+Use `--no-dump` to only create the directory without dumping built-in skills.",
         after_help = "Examples:\n\
-  agx skill init"
+  agx skill init\n\
+  agx skill init --no-dump"
     )]
-    Init,
+    Init(SkillInitArgs),
 
     #[command(
         name = "new",
@@ -132,6 +139,59 @@ Defaults to all skills when no name is provided.",
   agx skill validate ask-user-question"
     )]
     Validate(SkillValidateArgs),
+
+    #[command(
+        name = "list",
+        about = "List discoverable built-in and workspace skills",
+        long_about = "List discoverable built-in and workspace skills.\n\n\
+Supports machine-readable JSON output for other tools.",
+        after_help = "Examples:\n\
+  agx skill list\n\
+  agx skill list --origin builtin\n\
+  agx skill list --origin all --format json"
+    )]
+    List(SkillListArgs),
+
+    #[command(
+        name = "dump",
+        about = "Dump built-in skills for human use",
+        long_about = "Dump built-in skills for human use.\n\n\
+Writes selected built-in skills to `.agents/skills` by default.",
+        after_help = "Examples:\n\
+  agx skill dump ask-user-question\n\
+  agx skill dump --all\n\
+  agx skill dump --all --to /tmp/agent-skills"
+    )]
+    Dump(SkillDumpArgs),
+
+    #[command(
+        name = "install",
+        about = "Install built-in skills for automation",
+        long_about = "Install built-in skills for automation.\n\n\
+Writes selected skills to `.agents/skills` by default and can emit JSON output.",
+        after_help = "Examples:\n\
+  agx skill install ask-user-question\n\
+  agx skill install --all --force\n\
+  agx skill install ask-user-question --format json --to /tmp/agent-skills"
+    )]
+    Install(SkillInstallArgs),
+
+    #[command(
+        name = "export",
+        about = "Export built-in skills to a tar.gz archive",
+        long_about = "Export built-in skills to a tar.gz archive.\n\n\
+Archive layout preserves `.agents/skills/<name>/...` paths.",
+        after_help = "Examples:\n\
+  agx skill export --output dist/agx-skills-v0.1.0.tar.gz"
+    )]
+    Export(SkillExportArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SkillInitArgs {
+    /// Create `.agents/skills` only and skip dumping built-in skills.
+    #[arg(long = "no-dump", action = ArgAction::SetTrue)]
+    pub no_dump: bool,
 }
 
 #[derive(Debug, Args)]
@@ -146,6 +206,115 @@ pub struct SkillValidateArgs {
     /// Optional skill name under `.agents/skills`.
     #[arg(value_name = "name")]
     pub name: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct SkillListArgs {
+    /// Select skill origin for discovery.
+    #[arg(long = "origin", value_enum, default_value_t = SkillListOrigin::All)]
+    pub origin: SkillListOrigin,
+
+    /// Output format for discovered skills.
+    #[arg(long = "format", value_enum, default_value_t = SkillListFormat::Text)]
+    pub format: SkillListFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SkillListOrigin {
+    Builtin,
+    Workspace,
+    All,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SkillListFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug, Args)]
+pub struct SkillDumpArgs {
+    /// Optional built-in skill name to dump.
+    #[arg(value_name = "name")]
+    pub name: Option<String>,
+
+    /// Dump all built-in skills.
+    #[arg(long = "all", action = ArgAction::SetTrue)]
+    pub all: bool,
+
+    /// Optional output directory. Defaults to `.agents/skills` under project root.
+    #[arg(long = "to", value_name = "path")]
+    pub to: Option<PathBuf>,
+
+    /// Overwrite existing target skill directories.
+    #[arg(long = "force", action = ArgAction::SetTrue)]
+    pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct SkillInstallArgs {
+    /// Optional built-in skill name to install.
+    #[arg(value_name = "name")]
+    pub name: Option<String>,
+
+    /// Install all built-in skills.
+    #[arg(long = "all", action = ArgAction::SetTrue)]
+    pub all: bool,
+
+    /// Installation origin.
+    #[arg(
+        long = "origin",
+        value_enum,
+        default_value_t = SkillInstallOrigin::Builtin
+    )]
+    pub origin: SkillInstallOrigin,
+
+    /// Optional destination directory. Defaults to `.agents/skills`.
+    #[arg(long = "to", value_name = "path")]
+    pub to: Option<PathBuf>,
+
+    /// Overwrite existing target skill directories.
+    #[arg(long = "force", action = ArgAction::SetTrue)]
+    pub force: bool,
+
+    /// Output format for install results.
+    #[arg(
+        long = "format",
+        value_enum,
+        default_value_t = SkillInstallFormat::Text
+    )]
+    pub format: SkillInstallFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SkillInstallOrigin {
+    Builtin,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SkillInstallFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug, Args)]
+pub struct SkillExportArgs {
+    /// Export origin.
+    #[arg(
+        long = "origin",
+        value_enum,
+        default_value_t = SkillExportOrigin::Builtin
+    )]
+    pub origin: SkillExportOrigin,
+
+    /// Output `.tar.gz` archive path.
+    #[arg(long = "output", value_name = "path")]
+    pub output: PathBuf,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SkillExportOrigin {
+    Builtin,
 }
 
 /// CLI-provided RFC reference used by metadata fields.

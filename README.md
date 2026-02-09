@@ -8,10 +8,9 @@
 
 - `agx rfc init`
   - Creates `rfc/`.
-  - Creates `.agents/skills/` if missing.
-  - Installs `.agents/skills/create-rfc/` with:
-    - `SKILL.md`
-    - `agents/openai.yaml`
+  - Writes `rfc/0000-template.md` from the embedded binary template when missing.
+  - Requires `.agents/skills/` to already exist.
+  - If missing, errors and suggests: `agx skill dump --all`.
 
 - `agx rfc new [options] <title>`
   - Creates a new RFC markdown file in `rfc/` as `NNNN-<slug>.md`.
@@ -45,6 +44,12 @@
 
 - `agx skill init`
   - Creates `.agents/skills/`.
+  - By default, also dumps built-in skills into `.agents/skills/` (equivalent scope to `agx skill dump --all`).
+  - `--no-dump` opt-out creates only `.agents/skills/`.
+  - Prints a hint to use the code agent for creating new RFC skills.
+  - Prints a recommended copy-paste prompt for `$new-rfc-skill-creation-skill` so users can ask their coding agent to create `new-rfc` and collect feedback.
+  - Copies the recommended prompt to the system clipboard when clipboard access is available.
+  - Uses colored message categories in terminal output (paths/logs/hints/quoted prompt) when ANSI colors are supported.
 
 - `agx skill new <skill-name>`
   - Creates `.agents/skills/<skill-name>/`.
@@ -63,6 +68,40 @@
     - `description` is present and non-empty.
     - if `agents/openai.yaml` exists, it contains `interface:`.
 
+- `agx skill list [--origin builtin|workspace|all] [--format text|json]`
+  - Discovers built-in and/or workspace skills.
+  - JSON output includes `schema_version` and stable machine-readable fields.
+  - When both built-in and workspace entries exist for the same name, preferred origin is `workspace`.
+
+- `agx skill dump (<name> | --all) [--to <path>] [--force]`
+  - Human-oriented materialization of built-in skills.
+  - Default target is `.agents/skills` under the current Cargo project root.
+  - Refuses overwrites unless `--force` is provided.
+
+- `agx skill install (<name> | --all) [--origin builtin] [--to <path>] [--force] [--format text|json]`
+  - Automation-oriented materialization of built-in skills.
+  - Default target is `.agents/skills`.
+  - Refuses overwrites unless `--force` is provided.
+  - JSON output includes installed skill names and paths.
+
+- `agx skill export --origin builtin --output <archive.tar.gz>`
+  - Exports built-in skills to a `.tar.gz` archive.
+  - Preserves `.agents/skills/<name>/...` layout in the archive.
+
+## Bundled skills
+
+Built-in skills are generated at build time from:
+
+- `.agents/skills/builtin-manifest.toml`
+- `.agents/skills/<name>/...` directories selected by the manifest
+
+The resulting built-in catalog is embedded in the `agx` binary and used consistently by:
+
+- `agx skill list --origin builtin`
+- `agx skill dump`
+- `agx skill install --origin builtin`
+- `agx skill export --origin builtin`
+
 ## Examples
 
 ```bash
@@ -74,6 +113,10 @@ agx skill init
 agx skill new ask-user-question
 agx skill validate
 agx skill validate ask-user-question
+agx skill list --origin all --format json
+agx skill dump --all
+agx skill install ask-user-question --format json --to /tmp/agent-skills
+agx skill export --origin builtin --output dist/agx-skills-v0.1.0.tar.gz
 ```
 
 ## Build and Test

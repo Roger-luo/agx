@@ -1,6 +1,6 @@
 //! RFC command execution pipeline.
 //!
-//! - `rfc init`: create RFC directory and install `create-rfc` skill scaffold.
+//! - `rfc init`: create RFC directory, seed template, and require `.agents/skills`.
 //! - `rfc new`: render a new RFC markdown file from the resolved template.
 //! - `rfc revise`: update an existing RFC in place and append a revision entry.
 pub(crate) mod create;

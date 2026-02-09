@@ -1,8 +1,11 @@
 mod common;
 
-use std::{fs, path::Path};
+use std::{fs, io::Read, path::Path};
 
 use common::{TestWorkspace, output_stderr, output_stdout};
+use flate2::read::GzDecoder;
+use serde_json::Value;
+use tar::Archive;
 
 fn write_template(path: &Path, marker: &str) {
     let template = r#"+++
@@ -44,6 +47,14 @@ fn latest_revision_timestamp(markdown: &str) -> Option<String> {
         }
     }
     latest
+}
+
+fn write_package_manifest(root: &Path) {
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"skill-tests\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("failed to write Cargo.toml");
 }
 
 #[test]
@@ -501,11 +512,27 @@ fn create_mode_falls_back_to_embedded_template_when_project_template_missing() {
 }
 
 #[test]
-fn rfc_init_subcommand_creates_required_directories_and_skill() {
-    let workspace = TestWorkspace::new("init-subcommand");
+fn rfc_init_requires_skills_root_and_hints_skill_dump() {
+    let workspace = TestWorkspace::new("init-subcommand-requires-skills");
     fs::remove_dir_all(workspace.path().join("rfc")).expect("failed to remove rfc directory");
     assert!(!workspace.path().join(".agents").exists());
     assert!(!workspace.path().join(".agents/skills").exists());
+
+    let output = workspace.run_rfc_init();
+    assert!(!output.status.success(), "rfc init unexpectedly succeeded");
+
+    let stderr = output_stderr(&output);
+    assert!(stderr.contains(".agents/skills"));
+    assert!(stderr.contains("agx skill dump --all"));
+    assert!(!workspace.path().join("rfc").exists());
+}
+
+#[test]
+fn rfc_init_succeeds_when_skills_root_exists() {
+    let workspace = TestWorkspace::new("init-subcommand-success");
+    fs::remove_dir_all(workspace.path().join("rfc")).expect("failed to remove rfc directory");
+    fs::create_dir_all(workspace.path().join(".agents/skills"))
+        .expect("failed to create skills root");
 
     let output = workspace.run_rfc_init();
     assert!(
@@ -513,29 +540,51 @@ fn rfc_init_subcommand_creates_required_directories_and_skill() {
         "rfc init command failed:\n{}",
         output_stderr(&output)
     );
+
     assert!(workspace.path().join("rfc").is_dir());
+    assert!(
+        workspace.path().join("rfc/0000-template.md").is_file(),
+        "rfc init should materialize the embedded template"
+    );
+    let template = fs::read_to_string(workspace.path().join("rfc/0000-template.md"))
+        .expect("failed to read materialized template");
+    assert!(template.contains("## Future possibilities"));
     assert!(workspace.path().join(".agents/skills").is_dir());
     assert!(
-        workspace
+        !workspace
             .path()
             .join(".agents/skills/create-rfc/SKILL.md")
-            .is_file()
+            .exists()
     );
-    assert!(
-        workspace
-            .path()
-            .join(".agents/skills/create-rfc/agents/openai.yaml")
-            .is_file()
-    );
-
-    let stdout = output_stdout(&output);
-    assert!(stdout.contains("rfc"));
-    assert!(stdout.contains(".agents/skills"));
-    assert!(stdout.contains(".agents/skills/create-rfc"));
+    assert_eq!(output_stdout(&output).trim(), "rfc");
 }
 
 #[test]
-fn skill_init_creates_skills_root() {
+fn rfc_init_does_not_overwrite_existing_template() {
+    let workspace = TestWorkspace::new("init-subcommand-no-overwrite-template");
+    fs::create_dir_all(workspace.path().join(".agents/skills"))
+        .expect("failed to create skills root");
+    fs::write(
+        workspace.path().join("rfc/0000-template.md"),
+        "+++\ncustom = true\n+++\n\n# custom template\n",
+    )
+    .expect("failed to write custom template");
+
+    let output = workspace.run_rfc_init();
+    assert!(
+        output.status.success(),
+        "rfc init command failed:\n{}",
+        output_stderr(&output)
+    );
+
+    let template = fs::read_to_string(workspace.path().join("rfc/0000-template.md"))
+        .expect("failed to read template");
+    assert!(template.contains("custom template"));
+    assert!(!template.contains("## Future possibilities"));
+}
+
+#[test]
+fn skill_init_creates_skills_root_and_seeds_builtins() {
     let workspace = TestWorkspace::new("skill-init");
     assert!(!workspace.path().join(".agents").exists());
 
@@ -548,11 +597,68 @@ fn skill_init_creates_skills_root() {
 
     assert!(workspace.path().join(".agents/skills").is_dir());
     assert!(
+        workspace
+            .path()
+            .join(".agents/skills/ask-user-question/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        workspace
+            .path()
+            .join(".agents/skills/new-rfc-skill-creation-skill/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        workspace
+            .path()
+            .join(".agents/skills/new-rfc-skill-creation-skill/references/rfc-skill-template.md")
+            .is_file()
+    );
+
+    let stdout = output_stdout(&output);
+    assert!(stdout.contains("use the code agent"));
+    assert!(stdout.contains("RFC skills"));
+    assert!(stdout.contains("recommended prompt"));
+    assert!(stdout.contains("> Use $new-rfc-skill-creation-skill"));
+    assert!(stdout.contains("named `new-rfc`"));
+    assert!(stdout.contains("feedback"));
+    assert!(stdout.contains("copied recommended prompt to clipboard"));
+}
+
+#[test]
+fn skill_init_no_dump_creates_only_skills_root() {
+    let workspace = TestWorkspace::new("skill-init-no-dump");
+    assert!(!workspace.path().join(".agents").exists());
+
+    let output = workspace.run_skill(&["init", "--no-dump"]);
+    assert!(
+        output.status.success(),
+        "skill init --no-dump command failed:\n{}",
+        output_stderr(&output)
+    );
+
+    assert!(workspace.path().join(".agents/skills").is_dir());
+    assert!(
         !workspace
             .path()
-            .join(".agents/skills/ask-user-question")
+            .join(".agents/skills/ask-user-question/SKILL.md")
             .exists()
     );
+    assert!(
+        !workspace
+            .path()
+            .join(".agents/skills/new-rfc-skill-creation-skill/SKILL.md")
+            .exists()
+    );
+
+    let stdout = output_stdout(&output);
+    assert!(stdout.contains("use the code agent"));
+    assert!(stdout.contains("RFC skills"));
+    assert!(stdout.contains("recommended prompt"));
+    assert!(stdout.contains("> Use $new-rfc-skill-creation-skill"));
+    assert!(stdout.contains("named `new-rfc`"));
+    assert!(stdout.contains("feedback"));
+    assert!(stdout.contains("copied recommended prompt to clipboard"));
 }
 
 #[test]
@@ -617,4 +723,218 @@ fn skill_validate_rejects_invalid_skill() {
 
     let stderr = output_stderr(&output);
     assert!(stderr.contains("missing required `description`"));
+}
+
+#[test]
+fn skill_list_builtin_json_includes_schema_and_expected_entries() {
+    let workspace = TestWorkspace::new("skill-list-builtin-json");
+    let output = workspace.run_skill_list(&["--origin", "builtin", "--format", "json"]);
+
+    assert!(
+        output.status.success(),
+        "skill list command failed:\n{}",
+        output_stderr(&output)
+    );
+
+    let payload: Value =
+        serde_json::from_str(&output_stdout(&output)).expect("failed to parse JSON output");
+    assert_eq!(payload["schema_version"].as_u64(), Some(1));
+
+    let skills = payload["skills"]
+        .as_array()
+        .expect("skills must be an array");
+    assert!(skills.iter().any(|entry| {
+        entry["name"] == "ask-user-question"
+            && entry["builtin_available"] == true
+            && entry["workspace_path"].is_null()
+            && entry["preferred_origin"] == "builtin"
+    }));
+    assert!(skills.iter().any(|entry| {
+        entry["name"] == "new-rfc-skill-creation-skill" && entry["builtin_available"] == true
+    }));
+}
+
+#[test]
+fn skill_list_all_prefers_workspace_when_name_collides() {
+    let workspace = TestWorkspace::new("skill-list-collision");
+    let new_skill = workspace.run_skill_new("ask-user-question");
+    assert!(new_skill.status.success(), "{}", output_stderr(&new_skill));
+
+    let output = workspace.run_skill_list(&["--origin", "all", "--format", "json"]);
+    assert!(
+        output.status.success(),
+        "skill list command failed:\n{}",
+        output_stderr(&output)
+    );
+
+    let payload: Value =
+        serde_json::from_str(&output_stdout(&output)).expect("failed to parse JSON output");
+    let entry = payload["skills"]
+        .as_array()
+        .expect("skills must be an array")
+        .iter()
+        .find(|entry| entry["name"] == "ask-user-question")
+        .expect("missing ask-user-question entry");
+
+    assert_eq!(entry["preferred_origin"], "workspace");
+    assert_eq!(entry["builtin_available"], true);
+    assert!(
+        entry["workspace_path"]
+            .as_str()
+            .expect("workspace path should be a string")
+            .contains(".agents/skills/ask-user-question")
+    );
+}
+
+#[test]
+fn skill_dump_all_writes_to_default_agents_skills_path() {
+    let workspace = TestWorkspace::new("skill-dump-default");
+    write_package_manifest(workspace.path());
+
+    let output = workspace.run_skill_dump(&["--all"]);
+    assert!(
+        output.status.success(),
+        "skill dump command failed:\n{}",
+        output_stderr(&output)
+    );
+
+    assert!(
+        workspace
+            .path()
+            .join(".agents/skills/ask-user-question/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        workspace
+            .path()
+            .join(".agents/skills/new-rfc-skill-creation-skill/references/rfc-skill-template.md")
+            .is_file()
+    );
+}
+
+#[test]
+fn skill_dump_requires_to_when_not_in_project_root() {
+    let workspace = TestWorkspace::new("skill-dump-no-project-root");
+    let output = workspace.run_skill_dump(&["--all"]);
+
+    assert!(
+        !output.status.success(),
+        "skill dump unexpectedly succeeded"
+    );
+    assert!(output_stderr(&output).contains("could not determine a project root"));
+}
+
+#[test]
+fn skill_install_json_outputs_installed_paths() {
+    let workspace = TestWorkspace::new("skill-install-json");
+    let output = workspace.run_skill_install(&[
+        "ask-user-question",
+        "--origin",
+        "builtin",
+        "--to",
+        "installed-skills",
+        "--format",
+        "json",
+    ]);
+
+    assert!(
+        output.status.success(),
+        "skill install command failed:\n{}",
+        output_stderr(&output)
+    );
+
+    let payload: Value =
+        serde_json::from_str(&output_stdout(&output)).expect("failed to parse JSON output");
+    assert_eq!(payload["schema_version"].as_u64(), Some(1));
+    assert_eq!(payload["installed"][0]["name"], "ask-user-question");
+    assert!(
+        payload["installed"][0]["path"]
+            .as_str()
+            .expect("path should be a string")
+            .contains("installed-skills/ask-user-question")
+    );
+    assert!(
+        workspace
+            .path()
+            .join("installed-skills/ask-user-question/SKILL.md")
+            .is_file()
+    );
+}
+
+#[test]
+fn skill_install_refuses_conflict_without_force() {
+    let workspace = TestWorkspace::new("skill-install-conflict");
+
+    let new_skill = workspace.run_skill_new("ask-user-question");
+    assert!(new_skill.status.success(), "{}", output_stderr(&new_skill));
+
+    let output = workspace.run_skill_install(&["ask-user-question"]);
+    assert!(
+        !output.status.success(),
+        "skill install unexpectedly succeeded"
+    );
+    assert!(output_stderr(&output).contains("use --force to overwrite"));
+
+    let forced = workspace.run_skill_install(&["ask-user-question", "--force"]);
+    assert!(
+        forced.status.success(),
+        "skill install with --force failed:\n{}",
+        output_stderr(&forced)
+    );
+}
+
+#[test]
+fn skill_export_writes_tarball_with_expected_layout() {
+    let workspace = TestWorkspace::new("skill-export");
+    let output = workspace.run_skill_export(&[
+        "--origin",
+        "builtin",
+        "--output",
+        "dist/agx-skills-v0.1.0.tar.gz",
+    ]);
+
+    assert!(
+        output.status.success(),
+        "skill export command failed:\n{}",
+        output_stderr(&output)
+    );
+
+    let archive_path = workspace.path().join("dist/agx-skills-v0.1.0.tar.gz");
+    assert!(archive_path.is_file());
+
+    let archive_file = fs::File::open(&archive_path).expect("failed to open exported archive");
+    let decoder = GzDecoder::new(archive_file);
+    let mut archive = Archive::new(decoder);
+    let mut found_skill_md = false;
+    let mut found_reference = false;
+
+    for entry in archive.entries().expect("failed to read archive entries") {
+        let mut entry = entry.expect("failed to read archive entry");
+        let path = entry
+            .path()
+            .expect("entry path should be valid")
+            .to_string_lossy()
+            .into_owned();
+
+        if path == ".agents/skills/ask-user-question/SKILL.md" {
+            found_skill_md = true;
+            let mut content = String::new();
+            entry
+                .read_to_string(&mut content)
+                .expect("failed to read skill markdown from archive");
+            assert!(content.contains("name: ask-user-question"));
+        }
+        if path == ".agents/skills/new-rfc-skill-creation-skill/references/rfc-skill-template.md" {
+            found_reference = true;
+        }
+    }
+
+    assert!(
+        found_skill_md,
+        "expected ask-user-question SKILL.md in archive"
+    );
+    assert!(
+        found_reference,
+        "expected bundled reference file in archive layout"
+    );
 }

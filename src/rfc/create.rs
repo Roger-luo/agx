@@ -4,6 +4,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use tera::{Context as TeraContext, Tera};
 
 use crate::cli::RfcEditArgs;
+use crate::output;
 
 use super::reference::{ensure_unique_rfc_title, resolve_metadata_references};
 use super::template::load_template;
@@ -87,7 +88,7 @@ pub(crate) fn create_rfc(cli: &RfcEditArgs) -> Result<()> {
     file.write_all(rendered.as_bytes())
         .with_context(|| format!("failed to write RFC file {}", output_path.display()))?;
 
-    println!("{}", output_path.display());
+    output::print_path(output_path.display());
     Ok(())
 }
 
