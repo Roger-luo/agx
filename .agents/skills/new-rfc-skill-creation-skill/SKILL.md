@@ -25,6 +25,8 @@ Create or refresh `.agents/skills/new-rfc/SKILL.md` and `.agents/skills/new-rfc/
    - Replace every `<placeholder>` with project-specific values.
    - Keep frontmatter keys limited to `name` and `description`.
    - Ensure frontmatter `name` is exactly `new-rfc`.
+   - Ensure revision guidance in the generated skill requires revision mode plus `--agent <agent-name>`.
+   - Ensure revision guidance requires replacing generic revision text with a very brief one-sentence purpose summary.
 5. Write target files.
    - Write the specialized content to `.agents/skills/new-rfc/SKILL.md`.
    - Update `.agents/skills/new-rfc/agents/openai.yaml` with matching display name, short description, and a default prompt that references `$new-rfc`.
@@ -42,6 +44,7 @@ Create or refresh `.agents/skills/new-rfc/SKILL.md` and `.agents/skills/new-rfc/
 Cover every item before finalizing `new-rfc`:
 
 - RFC lifecycle commands (`new`, `revise`, or project-specific equivalents), including required flags.
+- Revision behavior: always revise with `--agent`, and always use a one-sentence revision purpose summary (not generic `Revised`).
 - RFC file location, naming pattern, and template source path.
 - Metadata fields and allowed status values.
 - Required and optional RFC sections.
