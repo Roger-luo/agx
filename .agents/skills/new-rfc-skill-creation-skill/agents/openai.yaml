@@ -1,0 +1,4 @@
+interface:
+  display_name: "New Rfc Skill Creation Skill"
+  short_description: "Create and validate a project-specific new-rfc skill"
+  default_prompt: "Use $new-rfc-skill-creation-skill to build a project-specific RFC skill named new-rfc."

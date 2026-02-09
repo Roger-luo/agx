@@ -1,0 +1,4 @@
+interface:
+  display_name: "AGX RFC Writer"
+  short_description: "Draft and revise RFCs using agx rfc conventions"
+  default_prompt: "Use $new-rfc to create or revise RFC documents for this project."
