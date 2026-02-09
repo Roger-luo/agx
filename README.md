@@ -2,6 +2,27 @@
 
 `agx` is a Rust CLI for project-local RFC and skill workflows.
 
+## Install
+
+Install latest release (Linux x86_64, macOS x86_64, macOS arm64):
+
+```bash
+curl -fsSL https://github.com/Roger-luo/agx/releases/latest/download/install.sh | sh
+```
+
+Install a specific version:
+
+```bash
+curl -fsSL https://github.com/Roger-luo/agx/releases/download/v0.1.0/install.sh | sh
+```
+
+Optional environment variables:
+
+- `AGX_INSTALL_DIR`: destination directory (default: `~/.local/bin`)
+- `AGX_REPO`: GitHub repo in `owner/name` format (default: `Roger-luo/agx`)
+- `AGX_BIN_NAME`: binary name to install (default: `agx`)
+- `AGX_VERSION`: release tag (default: `latest`)
+
 ## Current Functionality
 
 ### RFC commands
@@ -125,4 +146,18 @@ agx skill export --origin builtin --output dist/agx-skills-v0.1.0.tar.gz
 cargo build --workspace
 cargo test --workspace
 cargo fmt --all
+```
+
+## Release Signing Setup
+
+The tag-based release workflow signs each release tarball with a detached GPG signature (`.sig`).
+Configure these GitHub repository secrets before creating a release tag:
+
+- `RELEASE_GPG_PRIVATE_KEY`: ASCII-armored private key
+- `RELEASE_GPG_PASSPHRASE`: passphrase for the private key
+
+Manual signature verification example:
+
+```bash
+gpg --verify agx-x86_64-unknown-linux-gnu.tar.gz.sig agx-x86_64-unknown-linux-gnu.tar.gz
 ```

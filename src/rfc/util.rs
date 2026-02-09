@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn slugify_normalizes_words() {
-        assert_eq!(slugify("Hello, RFC Writer"), "hello-rfc-writer");
+        assert_eq!(slugify("Hello, AGX"), "hello-agx");
         assert_eq!(slugify("with__mixed---separators"), "with-mixed-separators");
     }
 
