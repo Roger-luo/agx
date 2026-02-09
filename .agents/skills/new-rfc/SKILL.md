@@ -1,77 +1,52 @@
 ---
 name: new-rfc
-description: Draft and revise RFC documents for the agx CLI project using the local RFC template, metadata conventions, and `agx rfc` workflow.
+description: Draft and revise RFC markdown files for agx using project template, metadata conventions, and review gates.
 ---
 
-# AGX RFC Writer
+# agx RFC Writer
 
 ## Overview
 
-Create RFC design documents for this repository in `rfc/` using `agx rfc new` and `agx rfc revise`, keeping metadata and revision history consistent with project conventions.
+Create RFC design documents that match agx conventions, cite concrete code locations, and follow the repository RFC workflow.
 
 ## Workflow
 
 1. Collect scope and constraints.
-   - Confirm motivation, non-goals, and expected user impact.
-   - Read relevant code and docs first, especially `src/rfc/`, `src/skill/`, `README.md`, and `AGENTS.md`.
-2. Create the RFC file first.
-   - Run `agx rfc new [options] <title>`.
-   - Prefer explicit metadata flags when available:
-     - `--author`
-     - `--agent`
-     - `--discussion`
-     - `--tracking_issue`
-     - `--prerequisite`
-     - `--supersedes`
-     - `--superseded_by`
-     - `--title` or `--title_parts`
-   - Title precedence is `--title` > `--title_parts` > positional `<title>`.
-   - Output path is `rfc/NNNN-<slug>.md`.
-3. Revise existing RFCs through command flow.
-   - Run `agx rfc revise [options] <selector>` where selector can be an RFC id, path, or slug-like selector.
-   - Let the command update metadata and append a `[[revision]]` entry with change text `Revised`.
-4. Fill all template sections with concrete content.
-   - The RFC template source is `rfc/0000-template.md` when present, otherwise the embedded fallback template.
-   - Replace all instructional placeholder text with project-specific details.
-   - Tie design claims to concrete code locations and APIs.
+   - Confirm goals, motivation, non-goals, compatibility impact, and migration needs.
+   - Identify affected modules before drafting, including concrete paths under `src/rfc/`, `src/skill/`, and other touched areas.
+   - Read `README.md`, `rfc/0000-template.md`, and `src/cli.rs` for terminology and command behavior.
+2. Create or revise the RFC file first.
+   - For new RFCs, run `agx rfc new --agent codex --author "AUTHOR_NAME" --title "RFC_TITLE"`.
+   - For updates, run `agx rfc revise --agent codex RFC_SELECTOR`.
+   - Use metadata flags as needed: `--discussion`, `--tracking_issue`, `--prerequisite`, `--supersedes`, `--superseded_by`, `--title`, `--title_parts`.
+   - Keep metadata updates command-driven when a CLI flag exists.
+3. Fill all template sections.
+   - Keep every heading from `rfc/0000-template.md`.
+   - Replace template helper text with concrete design content.
+   - If a section is not applicable, keep the heading and state why.
+4. Ground the design in code and docs.
+   - Reference exact touched files (for example, `src/rfc/create.rs`, `src/rfc/revise.rs`, `src/skill/validate.rs`).
+   - Include `README.md` references whenever CLI behavior or user workflow changes.
 5. Evaluate alternatives and risks.
    - Include at least two alternatives with explicit tradeoffs.
-   - Cover backwards compatibility, migration impact, and failure modes.
+   - Cover compatibility, migration, and failure modes.
 6. Close with actionable outcomes.
-   - End with unresolved questions and explicit implementation slices in dependency order.
+   - List unresolved questions and decision points explicitly.
+   - List implementation slices in dependency order.
+   - Include the validation command plan.
 
-## Project-specific requirements
+## agx-specific requirements
 
-- Keep terminology consistent with this codebase: `agx`, `rfc new`, `rfc revise`, RFC frontmatter metadata, and `[[revision]]`.
-- Use exact file references for impacted implementation (for example `src/rfc/create.rs`, `src/rfc/revise.rs`, `src/cli.rs`).
-- For metadata references (`prerequisite`, `supersedes`, `superseded_by`), provide ids or titles; command resolution handles conversion.
-- Do not hand-edit generated metadata when command flags can express the change.
-- This project currently has no dedicated RFC status field in the default template; do not introduce a custom status taxonomy unless requested.
-
-## Required RFC sections
-
-Keep these sections and make each one project-specific:
-
-- `Summary`
-- `Motivation`
-- `Guide-level explanation`
-- `Reference-level explanation`
-- `Reference implementation`
-- `Backwards compatibility`
-- `Security implications`
-- `How to teach this`
-- `Drawbacks`
-- `Rationale and alternatives`
-- `Prior art`
-- `Unresolved questions`
-- `Future possibilities`
+- RFC files live under `rfc/` and use the `NNNN-slug.md` naming pattern.
+- Template source is `rfc/0000-template.md`; if absent, tooling falls back to the embedded template.
+- Allowed metadata fields are current agx fields: `rfc`, `title`, `agents`, `authors`, `created`, `last_updated`, `discussion`, `tracking_issue`, `prerequisite`, `supersedes`, `superseded_by`, `revision`.
+- Do not introduce a `status` frontmatter field.
+- Keep terminology consistent with `README.md`, `rfc/0000-template.md`, and `src/cli.rs`.
+- Keep tone concise, concrete, and file-path specific.
 
 ## Quality gate
 
-- Ensure no placeholder guidance text remains in the final RFC body.
-- Verify command examples are executable in this repo.
-- Run relevant checks when implementation accompanies the RFC:
-  - `cargo build --workspace`
-  - `cargo test --workspace`
-  - `cargo fmt --all`
-- If any quality item is intentionally skipped, call it out explicitly in the RFC.
+- Require explicit compatibility and migration guidance; if none is needed, state "No migration required" and explain why.
+- Include unresolved questions in the RFC before review.
+- Include validation commands: `cargo fmt --all`, `cargo build --workspace`, `cargo test --workspace`, and `cargo insta review` when snapshots change.
+- RFC is review-ready when the above items are present and the RFC is opened for maintainer review in a pull request.

@@ -1,4 +1,4 @@
 interface:
-  display_name: "AGX RFC Writer"
-  short_description: "Draft and revise RFCs using agx rfc conventions"
-  default_prompt: "Use $new-rfc to create or revise RFC documents for this project."
+  display_name: "New RFC"
+  short_description: "Draft and revise RFCs with agx workflow conventions"
+  default_prompt: "Use $new-rfc to create or revise an RFC that follows this repository's RFC template, metadata fields, and review gates."
